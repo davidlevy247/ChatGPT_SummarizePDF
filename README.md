@@ -70,7 +70,7 @@ The ChatGPT prompt can be made complex enough to get results you want and will p
 
 For prompt example, I typically use something like this:
 ```
-The following is a single page from a PDF book, please summarize the page into coherent easy to understand paragraphs without indentations or early line breaks. Sometimes a single page will not be summarizable into one to three parapghs so when that happens report what the problem with the page is instead:
+Please summarize the following single page from a PDF book into coherent easy to understand paragraphs without indentations or early line breaks; sometimes a single page may be impossible to summarize into one to three paragraphs, so when that happens report what the problem is with the page:
 ```
 
 Please note: The quality of the generated summary highly depends on the content of the PDF file and the quality of the OCR conversion if it was required. The script might not always generate a suitable summary due to these factors.
