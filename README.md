@@ -15,6 +15,8 @@ The script will ask you if you wish to encrypt the config.txt file or not.
 
 ## Installation
 
+For windows users, before proceeding, ensure that Python and Pip are added to your environment variables. This can be confirmed by running `python --version` and `pip --version` from the command prompt. If both commands return a version number, Python is set up correctly. If not, please refer to the section 'Setting up Python Path on Windows' below.
+
 1. Clone this repository:
     ```sh
     git clone https://github.com/davidlevy247/ChatGPT_SummarizePDF.git
@@ -43,14 +45,38 @@ The script will ask you if you wish to encrypt the config.txt file or not.
         ```sh
         run.sh
         ```
-Please note:
-If you get a freeze error in windows command prompt you can use Control+C to get command prompt back. If this happens make sure to open task manager processes and close the related python process which wil probably still be running if there is a command prompt freeze.
+
+## Setting up Python Path on Windows
+
+If the Python command is not recognized in the command prompt, it's likely that Python is not added to your PATH environment variable. This can be done as follows:
+
+1. Locate your Python installation. Typically, it's in the `C:\Users\YourUserName\AppData\Local\Programs\Python\PythonVersion\` folder. Note: I habitually avoid installing programs on my OS drive, you can have python installed in a custom directory and on a different drive.
+2. Copy the path to the Python installation directory.
+3. Open the Start Menu and search for 'Environment Variables'. Click on 'Edit the system environment variables'.
+4. In the System Properties window that appears, click on 'Environment Variables'.
+5. In the Environment Variables window, under the 'System variables' section, find and select the 'Path' variable, then click on 'Edit'.
+6. In the Edit Environment Variable window, click on 'New', then paste the path to your Python installation directory. Do the same for the 'Scripts' subdirectory inside your Python installation directory.
+7. Click 'OK' in all windows to save your changes.
+
+Remember to open a new command prompt window to see the changes.
 
 ## Usage
 
 The script will first check if a configuration file named `config.txt` exists. If it does not, it will ask for your OpenAI API key and a prompt. It will also ask you to provide a password for encryption if you decide you want to use ecryption. These details will be saved in the `config.txt` file in an encrypted form for later usage.
 
 Once the initial setup is done, the script will open a file selection dialog where you can select the PDF file to summarize. After the summarization process is completed, a new text file containing the summaries of each page will be created in the same directory as the source PDF file.
+
+Please note: The quality of the generated summary highly depends on the content of the PDF file and the quality of the OCR conversion if it was required. The script might not always generate a suitable summary due to these factors.
+
+## Troubleshooting
+
+- If you encounter any errors during the installation or the run process, try to carefully read the error message. It often provides clues about what went wrong.
+- If you get a freeze error in the Windows command prompt, you can use Control+C to get the command prompt back. However, make sure to open the Task Manager and close the related Python process which will probably still be running.
+- If you encounter issues related to the OpenAI API, ensure that you have correctly entered your API key, and that your key has the necessary permissions and hasn't exceeded any rate limits.
+
+## Contribution
+
+Your contributions are always welcome! If you have suggestions for improvements or encounter a bug, please open an issue. Or, you can improve this project by opening a pull request with your changes.
 
 ## License
 
