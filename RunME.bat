@@ -6,7 +6,7 @@ if not exist "SummarizePDF" (
     python -m venv SummarizePDF
     call .\SummarizePDF\Scripts\activate.bat
     python -m pip install --upgrade pip
-    python -m pip install PyPDF2 openai
+    python -m pip install PyPDF2 openai cryptography
     call .\SummarizePDF\Scripts\deactivate.bat
 )
 
