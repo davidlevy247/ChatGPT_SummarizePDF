@@ -66,6 +66,13 @@ The script will first check if a configuration file named `config.txt` exists. I
 
 Once the initial setup is done, the script will open a file selection dialog where you can select the PDF file to summarize. After the summarization process is completed, a new text file containing the summaries of each page will be created in the same directory as the source PDF file.
 
+The ChatGPT prompt can be made complex enough to get results you want and will probably require tweaking to get the results you desire. For first setup or troubleshooting, try to use a small practice PDF with only a few pages so you don't run up your API usage costs until you have your prompt and settings dialed in.
+
+For prompt example, I typically use something like this:
+```
+The following is a single page from a PDF book, please summarize the page into coherent easy to understand paragraphs without indentations or early line breaks. Sometimes a single page will not be summarizable into one to three parapghs so when that happens report what the problem with the page is instead:
+```
+
 Please note: The quality of the generated summary highly depends on the content of the PDF file and the quality of the OCR conversion if it was required. The script might not always generate a suitable summary due to these factors.
 
 ## Troubleshooting
