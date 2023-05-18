@@ -8,7 +8,7 @@ if [ ! -d "SummarizePDF" ]; then
     python3 -m venv SummarizePDF
     source SummarizePDF/bin/activate
     python3 -m pip install --upgrade pip
-    python3 -m pip install PyPDF2 openai cryptography
+    python3 -m pip install -r requirements.txt
     deactivate
 fi
 
