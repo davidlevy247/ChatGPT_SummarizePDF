@@ -9,6 +9,9 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 import getpass
+from datetime import datetime
+import sys
+from colorama import Fore, Style
 
 CONFIG_FILE = 'config.txt'
 
@@ -36,7 +39,10 @@ def load_config(config_file, encryption_key=None):
         with open(config_file, 'rb') as f:
             data = f.read()
         if encryption_key is not None:
-            data = decrypt_data(data, encryption_key)
+            try:
+                data = decrypt_data(data, encryption_key)
+            except:
+                return None, None
         return data.decode().split('\n')
 
     return None, None
@@ -50,19 +56,53 @@ def save_config(config_file, api_key, prompt, encryption_key=None):
     with open(config_file, 'wb') as f:
         f.write(data)
 
-# Ask if user wants to use encryption
-use_encryption = input("Would you like to use encryption for the config file? [y/N]: ").strip().lower() in ['y', 'yes']
+if os.path.exists(CONFIG_FILE):
+    attempts = 3
+    while attempts > 0:
+        encryption_key = get_encryption_key()
+        api_key, prompt = load_config(CONFIG_FILE, encryption_key)
+        
+        if api_key is not None and prompt is not None:
+            break  # Successful decryption
 
-# If config file exists, decrypt and read the content
-encryption_key = get_encryption_key() if use_encryption else None
-api_key, prompt = load_config(CONFIG_FILE, encryption_key)
+        print(f"{Fore.RED}Incorrect password.{Style.RESET_ALL} {Fore.GREEN}Remaining Attempts:{Style.RESET_ALL} {Fore.RED}{attempts-1}{Style.RESET_ALL}")
+        attempts -= 1
 
-# If config file does not exist or user wants to change the config
-if api_key is None or prompt is None or \
-        input("Would you like to change the config? [y/N]: ").strip().lower() in ['y', 'yes']:
+    if attempts == 0:
+        if input(f"{Fore.RED}Unable to decrypt the configuration file.{Style.RESET_ALL} {Fore.GREEN}Would you like to create a new one?{Style.RESET_ALL} [y/N]: ").strip().lower() in ['y', 'yes']:
+            api_key = input(f"{Fore.GREEN}Enter your OpenAI API key: {Style.RESET_ALL}")
+            sys.stdout.write(Fore.RED + "Enter your prompt to ask ChatGPT for your desired results per page. " + Style.RESET_ALL)
+            sys.stdout.write("For example, 'Please summarize the following single page from a PDF book into coherent easy to understand paragraphs without indentations or early line breaks; sometimes a single page may be impossible to summarize into one to three paragraphs, so when that happens report what the problem is with the page:'\n")
+            prompt = input(f"{Fore.GREEN}Enter your prompt: {Style.RESET_ALL}")
+            use_encryption = input(f"{Fore.GREEN}Would you like to use encryption for the config file?{Style.RESET_ALL} [y/N]: ").strip().lower() in ['y', 'yes']
+            encryption_key = get_encryption_key() if use_encryption else None
+        else:
+            print("Exiting program.")
+            exit(1)
+
+    else:  # Proceed with the existing decrypted config
+        if input(f"{Fore.GREEN}Would you like to change the API key?{Style.RESET_ALL} [y/N]: ").strip().lower() in ['y', 'yes']:
+            api_key = input("{Fore.GREEN}Enter your new OpenAI API key:{Style.RESET_ALL} ")
+        if input(f"{Fore.GREEN}Would you like to change the prompt? Current prompt:{Style.RESET_ALL} '{prompt}' [y/N]: ").strip().lower() in ['y', 'yes']:
+            sys.stdout.write(Fore.RED + "Your prompt to ask ChatGPT for your desired results per page should be carefully written. " + Style.RESET_ALL)
+            sys.stdout.write("For example, 'Please summarize the following single page from a PDF book into coherent easy to understand paragraphs without indentations or early line breaks; sometimes a single page may be impossible to summarize into one to three paragraphs, so when that happens report what the problem is with the page:'\n")
+            prompt = input(f"{Fore.GREEN}Enter your prompt: {Style.RESET_ALL}")
+        if input(f"{Fore.GREEN}Would you like to change the encryption status of the config file?{Style.RESET_ALL} [y/N]: ").strip().lower() in ['y', 'yes']:
+            use_encryption = input(f"{Fore.GREEN}Would you like to use encryption for the config file?{Style.RESET_ALL} [y/N]: ").strip().lower() in ['y', 'yes']
+            encryption_key = get_encryption_key() if use_encryption else None
+
+    os.rename(CONFIG_FILE, f"{CONFIG_FILE}.{datetime.now().strftime('%Y%m%d%H%M%S')}.bak")
+else:  # config.txt does not exist
+    sys.stdout.write(Fore.GREEN + "No configuration file found. Let's create a new one."  + Style.RESET_ALL + "\n")
     api_key = input("Enter your OpenAI API key: ")
-    prompt = input("Enter your prompt: ")
-    save_config(CONFIG_FILE, api_key, prompt, encryption_key)
+    sys.stdout.write(Fore.RED + "Enter your prompt to ask ChatGPT for your desired results per page. " + Style.RESET_ALL)
+    sys.stdout.write("For example, 'Please summarize the following single page from a PDF book into coherent easy to understand paragraphs without indentations or early line breaks; sometimes a single page may be impossible to summarize into one to three paragraphs, so when that happens report what the problem is with the page:'\n")
+    prompt = input(f"{Fore.GREEN}Enter your prompt: {Style.RESET_ALL}")
+    use_encryption = input(f"{Fore.GREEN}Would you like to use encryption for the config file?{Style.RESET_ALL} [y/N]: ").strip().lower() in ['y', 'yes']
+    encryption_key = get_encryption_key() if use_encryption else None
+
+# Save new configuration
+save_config(CONFIG_FILE, api_key, prompt, encryption_key)
 
 # Set up OpenAI API key
 openai.api_key = api_key
@@ -95,6 +135,9 @@ def main():
 
     # Read PDF file
     pdf_reader = PdfReader(pdf_file_path)
+	
+    # Get total number of pages
+    total_pages = len(pdf_reader.pages)
 
     # Create output text file with the same name as the source PDF
     input_file_name = os.path.splitext(os.path.basename(pdf_file_path))[0]
@@ -103,11 +146,12 @@ def main():
     with open(output_file_path, 'w', encoding='utf-8') as output_file:
         print("Starting summarization process...")
         for page_num, page in enumerate(pdf_reader.pages, start=1):
-            print(f"Processing page {page_num}...")
+			# Show the page currently being processed and the total number of pages
+            print(f"{Fore.GREEN}Processing page {page_num} of {total_pages}...{Style.RESET_ALL}")
             text = page.extract_text()
             
             if not text or not is_text_suitable_for_summarization(text):
-                print(f"Page {page_num}: Unable to extract suitable text for summarization. Skipping.")
+                print(f"{Fore.RED}Page {page_num}: Unable to extract suitable text for summarization. Skipping.{Style.RESET_ALL}")
                 output_file.write(f"Page {page_num}: Unable to extract suitable text for summarization. Skipping.\n\n")
                 continue
 
