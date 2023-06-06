@@ -1,21 +1,26 @@
 import os
 import openai
+import re
+import base64
+import getpass
+import sys
+import logging
 from PyPDF2 import PdfReader
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
-import re
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-import base64
-import getpass
 from datetime import datetime
-import sys
 from colorama import Fore, Style
+
+# Initialize logging
+logging.basicConfig(filename='app.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 CONFIG_FILE = 'config.txt'
 
 def get_encryption_key():
+    logging.info('Getting encryption key.')
     password = getpass.getpass("Enter your password: ").encode()  # Get the password for encryption
     salt = b'\x00'*16  # Just for simplicity we use static salt
     kdf = PBKDF2HMAC(
@@ -24,17 +29,23 @@ def get_encryption_key():
         salt=salt,
         iterations=100000,
     )
+    logging.info('Encryption key obtained.')
     return base64.urlsafe_b64encode(kdf.derive(password))
 
 def encrypt_data(data, key):
+    logging.info('Encrypting data.')
     f = Fernet(key)
+    logging.info('Data encrypted.')
     return f.encrypt(data)
 
 def decrypt_data(data, key):
+    logging.info('Decrypting data.')
     f = Fernet(key)
+    logging.info('Data decrypted.')
     return f.decrypt(data)
 
 def load_config(config_file, encryption_key=None):
+    logging.info('Loading configuration file.')
     if os.path.exists(config_file):
         with open(config_file, 'rb') as f:
             data = f.read()
@@ -42,9 +53,12 @@ def load_config(config_file, encryption_key=None):
             try:
                 data = decrypt_data(data, encryption_key)
             except:
+                logging.error('Error occurred while decrypting data.')
                 return None, None
+        logging.info('Configuration file loaded.')
         return data.decode().split('\n')
 
+    logging.error('Configuration file not found.')
     return None, None
 
 def save_config(config_file, api_key, prompt, encryption_key=None):
@@ -56,12 +70,21 @@ def save_config(config_file, api_key, prompt, encryption_key=None):
     with open(config_file, 'wb') as f:
         f.write(data)
 
+def is_encrypted(config_file):
+    with open(config_file, 'rb') as f:
+        first_line = f.readline().strip()
+    return not re.match(r'sk-\w+', first_line.decode(errors='ignore'))
+
 if os.path.exists(CONFIG_FILE):
     attempts = 3
     while attempts > 0:
-        encryption_key = get_encryption_key()
-        api_key, prompt = load_config(CONFIG_FILE, encryption_key)
-        
+# Only ask for a password if the file is encrypted.
+        if is_encrypted(CONFIG_FILE):
+            encryption_key = get_encryption_key()
+        else:
+            encryption_key = None
+            api_key, prompt = load_config(CONFIG_FILE, encryption_key)
+
         if api_key is not None and prompt is not None:
             break  # Successful decryption
 
@@ -107,11 +130,38 @@ save_config(CONFIG_FILE, api_key, prompt, encryption_key)
 # Set up OpenAI API key
 openai.api_key = api_key
 
+#how many pages back to include
+ROLLING_WINDOW_SIZE = 2
+
+# max characters the API will accept
+API_CHARACTER_LIMIT = 4096
+
+#calculate prompt length and have that available to account for truncation
+PROMPT_LENGTH = len(prompt)
+
+def get_page_text(pages, start_page, end_page):
+    text = ''
+    for page in pages[start_page:end_page+1]:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text + "\n"
+    return text
+
+def truncate_text(text):
+    if len(text) > API_CHARACTER_LIMIT - PROMPT_LENGTH:
+        text = text[-(API_CHARACTER_LIMIT - PROMPT_LENGTH):]  # Ensure text + prompt doesn't exceed API character limit
+    return text
+
 def summarize_text(text):
+    # Check if the text is empty or consists only of whitespace
+    if not text or text.isspace():
+        return None
+
     # Use OpenAI API to summarize text
+    text = truncate_text(text)  # Truncate text if it's too long
     response = openai.Completion.create(
         engine="text-davinci-002",
-        prompt=f"Please review the text excerpt from a text book page and summarize into a few easy to understand parapgraphs, if the page does not contain anything you can summarize into a few easy to understand paragraphs then report why:\n\n{text}",
+        prompt=f"{prompt}\n\n{text}",
         max_tokens=100,
         n=1,
         stop=None,
@@ -145,30 +195,27 @@ def main():
 
     with open(output_file_path, 'w', encoding='utf-8') as output_file:
         print("Starting summarization process...")
-        for page_num, page in enumerate(pdf_reader.pages, start=1):
+        for page_num in range(total_pages):
 			# Show the page currently being processed and the total number of pages
-            print(f"{Fore.GREEN}Processing page {page_num} of {total_pages}...{Style.RESET_ALL}")
-            text = page.extract_text()
-            
-            if not text or not is_text_suitable_for_summarization(text):
-                print(f"{Fore.RED}Page {page_num}: Unable to extract suitable text for summarization. Skipping.{Style.RESET_ALL}")
-                output_file.write(f"Page {page_num}: Unable to extract suitable text for summarization. Skipping.\n\n")
+            print(f"{Fore.GREEN}Processing page {page_num+1} of {total_pages}...{Style.RESET_ALL}")
+
+            start_page = max(0, page_num - 2)  # we take the current page and the 2 previous ones
+            page_text = get_page_text(pdf_reader.pages, start_page, page_num)
+            page_text = truncate_text(page_text)
+
+            if not page_text or not is_text_suitable_for_summarization(page_text):
+                print(f"{Fore.RED}Page {page_num+1}: Unable to extract suitable text for summarization. Skipping.{Style.RESET_ALL}")
+                output_file.write(f"Page {page_num+1}: Unable to extract suitable text for summarization. Skipping.\n\n")
                 continue
 
-            summary = None
-            retries = 3
-            while retries > 0:
-                summary = summarize_text(text)
-                if is_text_suitable_for_summarization(summary):
-                    break
-                retries -= 1
+            summary = summarize_text(page_text)
 
             if summary and is_text_suitable_for_summarization(summary):
-                print(f"Page {page_num} summary: {summary}")
-                output_file.write(f"Page {page_num} Summary:\n{summary}\n\n")
+                print(f"Page {page_num+1} summary: {summary}")
+                output_file.write(f"Page {page_num+1} Summary:\n{summary}\n\n")
             else:
-                print(f"Page {page_num}: Failed to generate a suitable summary.")
-                output_file.write(f"Page {page_num}: Failed to generate a suitable summary.\n\n")
+                print(f"Page {page_num+1}: Failed to generate a suitable summary.")
+                output_file.write(f"Page {page_num+1}: Failed to generate a suitable summary.\n\n")
             
             output_file.flush()
             os.fsync(output_file.fileno())
